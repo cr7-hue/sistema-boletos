@@ -251,5 +251,17 @@ if __name__ == '__main__':
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_fecha_registro ON boletos(fecha_registro)')
     conn.commit()
     conn.close()
-    
+
+    conn = sqlite3.connect('boletos.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS boletos
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   fecha_registro TIMESTAMP,
+                   costo_boleto REAL,
+                   fecha_boleto DATE,
+                   numero_asiento TEXT,
+                   codigo_boleto TEXT,
+                   vendedor TEXT)''')
+    conn.commit()
+    conn.close()
     app.run(debug=True)
