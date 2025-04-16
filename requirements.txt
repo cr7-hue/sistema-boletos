@@ -3,3 +3,4 @@ gunicorn
 pandas
 openpyxl
 msoffcrypto-tool
+uvicorn
