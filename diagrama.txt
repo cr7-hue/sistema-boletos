@@ -1,0 +1,12 @@
+sistema-boletos/
+│
+├── static/
+│   ├── styles.css
+│   └── logo.png  # Coloca aquí tu imagen de logo
+├── templates/
+│   ├── index.html
+│   └── editar.html
+├── app.py
+├── migrar_datos.py
+├── schema.py
+└── boletos.db

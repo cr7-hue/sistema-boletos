@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Boletos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Logo" class="logo">
+            </div>
+            <div class="header-right">
+                <button id="theme-toggle" class="theme-toggle-btn">Tema Claro</button>
+            </div>
+        </div>
+
+        <h1>Registro de Boletos</h1>
+
+        <!-- Formulario para vender -->
+        <form method="POST" action="{{ url_for('vender') }}" class="form-grid">
+            <div class="form-row">
+                <label for="costo">Costo (Bs):</label>
+                <input type="number" id="costo" name="costo" placeholder="Costo (Bs)" required>
+            </div>
+            <div class="form-row">
+                <label for="asiento">Asiento(s):</label>
+                <input type="text" id="asiento" name="asiento" placeholder="ej. 25,26,24 o 25-26-24" required>
+            </div>
+            <div class="form-row">
+                <label for="codigo">Código:</label>
+                <input type="text" id="codigo" name="codigo" value="{{ proximo_codigo }}" placeholder="Código de Boleto" required>
+            </div>
+            <div class="form-row">
+                <label for="vendedor">Vendedor:</label>
+                <select id="vendedor" name="vendedor">
+                    <option value="Mamá">Mamá</option>
+                    <option value="Hermana">Hermana</option>
+                </select>
+            </div>
+            <div class="form-buttons">
+                <button type="submit" class="vender-btn">Vender Boleto</button>
+            </div>
+        </form>
+
+        <!-- Formulario para anular -->
+        <form method="POST" action="{{ url_for('anular') }}" class="anular-form">
+            <div class="form-row">
+                <button type="submit" class="anular-btn">Anular Boleto</button>
+            </div>
+        </form>
+
+        <!-- Resumen estadístico -->
+        <div class="summary">
+            <div class="summary-row">
+                <span class="summary-label">Total Ingresos {% if not show_all %}({{ selected_date|datetimeformat('date_only') }}){% endif %}:</span>
+                <span class="summary-value">{{ "%.2f"|format(total_ingresos) }} Bs</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Boletos Vendidos {% if not show_all %}({{ selected_date|datetimeformat('date_only') }}){% endif %}:</span>
+                <span class="summary-value">{{ total_boletos }}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Boletos Anulados {% if not show_all %}({{ selected_date|datetimeformat('date_only') }}){% endif %}:</span>
+                <span class="summary-value">{{ total_anulados }}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Total Asientos {% if not show_all %}({{ selected_date|datetimeformat('date_only') }}){% endif %}:</span>
+                <span class="summary-value">{{ total_asientos }}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Desglose por Vendedor {% if not show_all %}({{ selected_date|datetimeformat('date_only') }}){% endif %}:</span>
+                <span class="summary-value">
+                    {% for vendedor, datos in desglose_vendedor.items() %}
+                        <p>{{ vendedor }}: {{ datos.boletos }} boletos ({{ "%.2f"|format(datos.ingresos) }} Bs)</p>
+                    {% endfor %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Botón de exportación -->
+        <div class="exportar-container">
+            <a href="{{ url_for('exportar') }}" class="exportar-btn">Exportar a CSV</a>
+        </div>
+
+        <!-- Tabla de boletos con dropdown -->
+        <h2>Historial de Boletos</h2>
+        <div class="date-filter">
+            {% if not show_all %}
+            <form method="GET" action="{{ url_for('index') }}">
+                <label for="fecha">Seleccionar Fecha:</label>
+                <select id="fecha" name="fecha" onchange="this.form.submit()">
+                    {% for fecha in fechas %}
+                        <option value="{{ fecha }}" {% if fecha == selected_date %}selected{% endif %}>{{ fecha|datetimeformat('date_only') }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+            <a href="{{ url_for('index', show_all='true') if not show_all else url_for('index') }}" class="show-all-btn">
+                {{ "Ver Historial Completo" if not show_all else "Volver a Vista por Fecha" }}
+            </a>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Costo (Bs)</th>
+                        <th>Asiento(s)</th>
+                        <th>Código</th>
+                        <th>Vendedor</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if boletos %}
+                        {% for boleto, conteo in boletos %}
+                        <tr class="{% if boleto[2] is none %}anulado{% endif %}">
+                            <td>{{ boleto[1]|datetimeformat }}</td>
+                            <td>{% if boleto[2] is not none %}{{ "%.2f"|format(boleto[2]) }}{% else %}ANULADO{% endif %}</td>
+                            <td>{% if boleto[4] is not none %}{{ boleto[4] }}{% else %}ANULADO{% endif %}</td>
+                            <td>{{ boleto[5] }}</td>
+                            <td>{% if boleto[6] is not none %}{{ boleto[6] }}{% else %}ANULADO{% endif %}</td>
+                            <td>
+                                <a href="{{ url_for('editar', id=boleto[0]) }}" class="edit-btn">Editar</a>
+                                <form method="POST" action="{{ url_for('eliminar', id=boleto[0]) }}" style="display: inline;">
+                                    <button type="submit" class="delete-btn">Eliminar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6">No hay boletos para la fecha seleccionada.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Cargar el tema guardado del localStorage
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.classList.add(savedTheme + '-theme');
+            updateThemeButton(savedTheme);
+
+            // Botón para alternar el tema
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                // Actualizar la clase del body
+                document.body.classList.remove(currentTheme + '-theme');
+                document.body.classList.add(newTheme + '-theme');
+                
+                // Guardar la preferencia en localStorage
+                localStorage.setItem('theme', newTheme);
+                
+                // Actualizar el texto del botón
+                updateThemeButton(newTheme);
+            });
+        });
+
+        function updateThemeButton(theme) {
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            themeToggleBtn.textContent = theme === 'dark' ? 'Tema Claro' : 'Tema Oscuro';
+        }
+    </script>
+</body>
+</html>

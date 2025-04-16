@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Boleto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Logo" class="logo">
+            </div>
+            <div class="header-right">
+                <button id="theme-toggle" class="theme-toggle-btn">Tema Claro</button>
+            </div>
+        </div>
+        <h1>Editar Boleto (Registrado el {{ boleto[1]|datetimeformat }})</h1>
+        <form method="POST" action="{{ url_for('actualizar', id=boleto[0]) }}" class="form-grid">
+            <div class="form-row">
+                <label for="costo">Costo (Bs):</label>
+                <input type="number" id="costo" name="costo" value="{{ boleto[2] if boleto[2] is not none else '' }}" placeholder="{% if boleto[2] is none %}ANULADO{% else %}Costo (Bs){% endif %}" required step="0.01">
+            </div>
+            <div class="form-row">
+                <label for="asiento">Asiento(s):</label>
+                <input type="text" id="asiento" name="asiento" value="{{ boleto[4] if boleto[4] is not none else '' }}" placeholder="{% if boleto[4] is none %}ANULADO{% else %}ej. 25,26,24 o 25-26-24{% endif %}" required>
+            </div>
+            <div class="form-row">
+                <label for="codigo">Código:</label>
+                <input type="text" id="codigo" name="codigo" value="{{ boleto[5] }}" placeholder="Código de Boleto" required>
+            </div>
+            <div class="form-row">
+                <label for="vendedor">Vendedor:</label>
+                <select id="vendedor" name="vendedor">
+                    <option value="Mamá" {% if boleto[6] == "Mamá" %}selected{% endif %}>Mamá</option>
+                    <option value="Hermana" {% if boleto[6] == "Hermana" %}selected{% endif %}>Hermana</option>
+                    <option value="Sistema" {% if boleto[6] == "Sistema" %}selected{% endif %}>Sistema</option>
+                </select>
+            </div>
+            <div class="form-buttons">
+                <button type="submit" class="vender-btn">Actualizar</button>
+                <a href="{{ url_for('index') }}" class="anular-btn">Cancelar</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Cargar el tema guardado del localStorage
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.body.classList.add(savedTheme + '-theme');
+            updateThemeButton(savedTheme);
+
+            // Botón para alternar el tema
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            themeToggleBtn.addEventListener('click', () => {
+                const currentTheme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                // Actualizar la clase del body
+                document.body.classList.remove(currentTheme + '-theme');
+                document.body.classList.add(newTheme + '-theme');
+                
+                // Guardar la preferencia en localStorage
+                localStorage.setItem('theme', newTheme);
+                
+                // Actualizar el texto del botón
+                updateThemeButton(newTheme);
+            });
+        });
+
+        function updateThemeButton(theme) {
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            themeToggleBtn.textContent = theme === 'dark' ? 'Tema Claro' : 'Tema Oscuro';
+        }
+    </script>
+</body>
+</html>
