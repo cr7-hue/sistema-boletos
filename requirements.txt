@@ -4,3 +4,4 @@ pandas
 openpyxl
 msoffcrypto-tool
 uvicorn
+psycopg2-binary==2.9.9

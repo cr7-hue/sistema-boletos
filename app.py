@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, Response
-import sqlite3
+import psycopg2  # Reemplazamos sqlite3 por psycopg2
 from datetime import datetime, timedelta
 import csv
 from io import StringIO
@@ -7,16 +7,33 @@ import locale
 
 app = Flask(__name__)
 
+# Configuración de la conexión a PostgreSQL (usa tus credenciales de Render)
+DB_HOST = "your_host"  # Ejemplo: "dpg-xxxx.us-west-2.rds.amazonaws.com"
+DB_PORT = "5432"
+DB_USER = "your_username"
+DB_NAME = "your_dbname"
+DB_PASS = "your_password"
+
+def get_db_connection():
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME
+    )
+    return conn
+
 # Configurar el idioma español para las fechas
 try:
-    locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')  # Para Linux/Mac
+    locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
 except locale.Error:
     try:
-        locale.setlocale(locale.LC_TIME, 'es_ES')  # Para Windows
+        locale.setlocale(locale.LC_TIME, 'es_ES')
     except locale.Error:
-        locale.setlocale(locale.LC_TIME, '')  # Fallback
+        locale.setlocale(locale.LC_TIME, '')
 
-# Filtro personalizado para formatear fechas
+# Filtro personalizado para formatear fechas (sin cambios)
 @app.template_filter('datetimeformat')
 def datetimeformat(value, format='%A, %d de %B de %Y %H:%M'):
     if value is None:
@@ -29,47 +46,40 @@ def datetimeformat(value, format='%A, %d de %B de %Y %H:%M'):
                 value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 return value
-    # Formato para fechas sin hora (usado en el dropdown)
     if format == 'date_only':
         formatted_date = value.strftime('%A, %d de %B de %Y').capitalize()
-        # Reemplazar " 0" con " " para quitar el cero inicial en el día (ej. " 04" -> " 4")
         formatted_date = formatted_date.replace(' 0', ' ')
         return formatted_date
-    # Formato por defecto con hora (usado en la tabla)
     formatted_date = value.strftime(format).capitalize()
-    # Reemplazar " 0" con " " para quitar el cero inicial en el día
     formatted_date = formatted_date.replace(' 0', ' ')
     return formatted_date
 
 # Función para generar el siguiente código
 def get_next_codigo(ultimo_codigo=None):
     if ultimo_codigo:
-        prefix = ultimo_codigo[:4]  # Tomar los primeros 4 dígitos (ej. "0135")
-        suffix = int(ultimo_codigo[4:]) if ultimo_codigo[4:] else 0  # Tomar los últimos 2 dígitos (ej. "05")
+        prefix = ultimo_codigo[:4]
+        suffix = int(ultimo_codigo[4:]) if ultimo_codigo[4:] else 0
         nuevo_suffix = suffix + 1
-        # Asegurar que el sufijo tenga 2 dígitos, rellenando con ceros a la izquierda
         nuevo_suffix_str = str(nuevo_suffix).zfill(2)
         nuevo_codigo = f"{prefix}{nuevo_suffix_str}"
         return nuevo_codigo
 
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT codigo_boleto FROM boletos ORDER BY codigo_boleto DESC LIMIT 1')
     result = cursor.fetchone()
     conn.close()
-
     if result:
         ultimo_codigo = result[0]
-        prefix = ultimo_codigo[:4]  # Tomar los primeros 4 dígitos (ej. "0135")
-        suffix = int(ultimo_codigo[4:]) if ultimo_codigo[4:] else 0  # Tomar los últimos 2 dígitos (ej. "05")
+        prefix = ultimo_codigo[:4]
+        suffix = int(ultimo_codigo[4:]) if ultimo_codigo[4:] else 0
         nuevo_suffix = suffix + 1
-        # Asegurar que el sufijo tenga 2 dígitos, rellenando con ceros a la izquierda
         nuevo_suffix_str = str(nuevo_suffix).zfill(2)
         nuevo_codigo = f"{prefix}{nuevo_suffix_str}"
         return nuevo_codigo
     return "0123001"
 
-# Función para contar asientos
+# Función para contar asientos (sin cambios)
 def contar_asientos(asiento_str):
     if not asiento_str:
         return 0
@@ -79,45 +89,38 @@ def contar_asientos(asiento_str):
 
 @app.route('/')
 def index():
-    # Verificar si se quiere mostrar el historial completo
     show_all = request.args.get('show_all', 'false') == 'true'
     selected_date = request.args.get('fecha', None)
     
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Obtener la fecha actual y el límite de 30 días atrás
     today = datetime.now()
     date_limit = today - timedelta(days=30)
     
-    # Obtener las fechas únicas de los últimos 30 días (solo si no se muestra el historial completo)
     fechas = []
     if not show_all:
         cursor.execute('''
             SELECT DISTINCT DATE(fecha_registro)
             FROM boletos
-            WHERE fecha_registro >= ?
+            WHERE fecha_registro >= %s
             ORDER BY fecha_registro DESC
         ''', (date_limit,))
         fechas = [row[0] for row in cursor.fetchall()]
     
-    # Si no se quiere mostrar todo, y no hay fecha seleccionada, usar la más reciente
     if not show_all:
         if not selected_date and fechas:
             selected_date = fechas[0]
         elif not selected_date:
             selected_date = today.strftime('%Y-%m-%d')
 
-    # Obtener los boletos
     if show_all:
-        # Mostrar todos los boletos
         cursor.execute('SELECT * FROM boletos ORDER BY fecha_registro DESC')
         boletos = cursor.fetchall()
     else:
-        # Filtrar boletos por la fecha seleccionada
         cursor.execute('''
             SELECT * FROM boletos
-            WHERE DATE(fecha_registro) = ?
+            WHERE DATE(fecha_registro) = %s
             ORDER BY fecha_registro DESC
         ''', (selected_date,))
         boletos = cursor.fetchall()
@@ -127,7 +130,6 @@ def index():
         conteo = contar_asientos(boleto[4]) if boleto[4] is not None else 0
         boletos_con_conteo.append((boleto, conteo))
     
-    # Calcular estadísticas
     total_ingresos = sum(boleto[2] for boleto in boletos if boleto[2] is not None)
     total_boletos = len([b for b in boletos if b[2] is not None])
     total_anulados = len([b for b in boletos if b[2] is None])
@@ -157,11 +159,11 @@ def vender():
     codigo = request.form['codigo']
     vendedor = request.form['vendedor']
 
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO boletos (fecha_registro, costo_boleto, numero_asiento, codigo_boleto, vendedor)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     ''', (datetime.now(), costo, asiento, codigo, vendedor))
     conn.commit()
     conn.close()
@@ -169,9 +171,9 @@ def vender():
 
 @app.route('/eliminar/<int:id>', methods=['POST'])
 def eliminar(id):
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM boletos WHERE id = ?', (id,))
+    cursor.execute('DELETE FROM boletos WHERE id = %s', (id,))
     conn.commit()
     conn.close()
     return redirect(url_for('index'))
@@ -179,11 +181,11 @@ def eliminar(id):
 @app.route('/anular', methods=['POST'])
 def anular():
     codigo = get_next_codigo()
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO boletos (fecha_registro, costo_boleto, numero_asiento, codigo_boleto, vendedor)
-        VALUES (?, NULL, NULL, ?, NULL)
+        VALUES (%s, NULL, NULL, %s, NULL)
     ''', (datetime.now(), codigo))
     conn.commit()
     conn.close()
@@ -191,9 +193,9 @@ def anular():
 
 @app.route('/editar/<int:id>', methods=['GET'])
 def editar(id):
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM boletos WHERE id = ?', (id,))
+    cursor.execute('SELECT * FROM boletos WHERE id = %s', (id,))
     boleto = cursor.fetchone()
     conn.close()
     return render_template('editar.html', boleto=boleto)
@@ -205,12 +207,12 @@ def actualizar(id):
     codigo = request.form['codigo']
     vendedor = request.form['vendedor']
 
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE boletos 
-        SET costo_boleto = ?, numero_asiento = ?, codigo_boleto = ?, vendedor = ?
-        WHERE id = ?
+        SET costo_boleto = %s, numero_asiento = %s, codigo_boleto = %s, vendedor = %s
+        WHERE id = %s
     ''', (costo, asiento, codigo, vendedor, id))
     conn.commit()
     conn.close()
@@ -218,7 +220,7 @@ def actualizar(id):
 
 @app.route('/exportar')
 def exportar():
-    conn = sqlite3.connect('boletos.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM boletos ORDER BY fecha_registro DESC')
     boletos = cursor.fetchall()
@@ -244,24 +246,30 @@ def exportar():
         headers={"Content-Disposition": "attachment;filename=boletos.csv"}
     )
 
-if __name__ == '__main__':
-    # Crear un índice en fecha_registro para mejorar el rendimiento de las consultas
-    conn = sqlite3.connect('boletos.db')
+# Inicializar la base de datos al inicio
+def init_db():
+    conn = get_db_connection()
     cursor = conn.cursor()
+    # Crear la tabla si no existe
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS boletos (
+            id SERIAL PRIMARY KEY,
+            fecha_registro TIMESTAMP,
+            costo_boleto FLOAT,
+            fecha_boleto DATE,
+            numero_asiento TEXT,
+            codigo_boleto TEXT,
+            vendedor TEXT
+        )
+    ''')
+    # Crear un índice en fecha_registro
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_fecha_registro ON boletos(fecha_registro)')
     conn.commit()
     conn.close()
 
-    conn = sqlite3.connect('boletos.db')
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS boletos
-                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   fecha_registro TIMESTAMP,
-                   costo_boleto REAL,
-                   fecha_boleto DATE,
-                   numero_asiento TEXT,
-                   codigo_boleto TEXT,
-                   vendedor TEXT)''')
-    conn.commit()
-    conn.close()
+# Inicializar la base de datos cuando la app arranca
+with app.app_context():
+    init_db()
+
+if __name__ == '__main__':
     app.run(debug=True)
