@@ -8,11 +8,11 @@ import locale
 app = Flask(__name__)
 
 # Configuración de la conexión a PostgreSQL (usa tus credenciales de Render)
-DB_HOST = "your_host"  # Ejemplo: "dpg-xxxx.us-west-2.rds.amazonaws.com"
+DB_HOST = "dpg-d004stqli9vc739hver0-a"  # Ejemplo: "dpg-xxxx.us-west-2.rds.amazonaws.com"
 DB_PORT = "5432"
-DB_USER = "your_username"
-DB_NAME = "your_dbname"
-DB_PASS = "your_password"
+DB_USER = "boletos_db_user"
+DB_NAME = "boletos_db"
+DB_PASS = "r1s1JyJMP84lyxonVWJjbYmz6EGnwix2"
 
 def get_db_connection():
     conn = psycopg2.connect(
