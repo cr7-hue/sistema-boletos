@@ -104,7 +104,7 @@ def index():
             SELECT DISTINCT DATE(fecha_registro)
             FROM boletos
             WHERE fecha_registro >= %s
-            ORDER BY fecha_registro DESC
+            ORDER BY DATE(fecha_registro) DESC
         ''', (date_limit,))
         fechas = [row[0] for row in cursor.fetchall()]
     
